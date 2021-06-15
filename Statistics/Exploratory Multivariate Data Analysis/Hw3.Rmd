@@ -1,0 +1,171 @@
+---
+title: "Exploratory Multivariate Data Analysis -- Hw 3"
+author: "農藝所碩二 R08621110 閻大瑞"
+output:
+  html_document:
+    code_folding: show
+    theme: simplex
+    toc: yes
+    toc_depth: 4
+    toc_float:
+      collapsed: no
+  word_document:
+    toc: yes
+    toc_depth: '4'
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem 1
+In Olkin and Veath (1980), the evolution of citrate concentrations in plasma is observed at three different times of day, $X_1$ (8 am), $X_2$ (11 am) and $X_3$ (3 pm), for two groups of patients who follow different diets. (The patients were randomly attributed to each group under a balanced design $n_1 = n_2 = 5$.  
+Test if the profiles of the groups are parallel, if they are at the same level and if they are horizontal. (plasma.dat)
+
+```{r}
+plasma <- read.delim("C:/Users/Darui Yen/Downloads/plasma.dat", header = T, sep = "")
+
+I <- subset(plasma, plasma$group == "I", select = c("x1", "x2", "x3"))
+II <- subset(plasma, plasma$group == "II", select = c("x1", "x2", "x3"))
+meanI <- colMeans(I)
+meanII <- colMeans(II)
+A = matrix(c(1,0,-1,1,0,-1),2,3)
+poolcov <- (cov(I)*4 + cov(II)*4) / 8
+covinver <- solve(A%*%poolcov%*%t(A)) 
+
+t2 <- (25/10)*(meanI-meanII)%*%t(A)%*%covinver%*%A%*%t(t(meanI-meanII))
+fcal <- (7/16)*t2
+fcri <- qf(0.95, 2, 7)
+
+fcal
+if (fcal < fcri) print("Profiles of two groups are parallel at 5% significant level.") else print("Profiles of two groups are not parallel at 5% significant level.")
+```
+由$T_2$計算而來的$F$值和$F_{(0.05, 2, 7)}$進行檢定後無法拒絕$H_0$，可以推論兩個group之間為parallel，表示兩個group中各個變數的趨勢是大致相同的。
+
+```{r}
+grandmean <- (meanI*5+meanII*5)/10
+t2 <- 10*grandmean%*%t(A)%*%covinver%*%A%*%t(t(grandmean))
+fcal <- (7/16)*t2
+fcri <- qf(0.95, 2, 7)
+
+fcal
+if (fcal < fcri) print("Profiles of two groups have equal mean response at 5% significant level.") else print("Profiles of two groups do not have equal mean response at 5% significant level.")
+```
+由另一種$T_2$計算而來的$F$值和$F_{(0.05, 2, 7)}$進行檢定後無法拒絕$H_0$，可以推論三個變數之間之平均差異不顯著，也表示變數之間大致為horizontal。
+
+```{r}
+t <- abs(sum(meanI-meanII)/sqrt(sum(poolcov)*(1/5+1/5)))
+tcri <- qt(0.975, 8)
+
+fcal
+if (t < tcri) print("Profiles of two groups are at same level at 5% significant level.") else print("Profiles of two groups are not at same level at 5% significant level.")
+```
+經由t檢定拒絕$H_0$，可以推論兩個group之間總體的變數平均有顯著差異。
+
+
+## Problem 2
+
+Baten, Tack, and Baeder (1958) compared judges' scores on fish prepared by three methods. Twelve fish were cooked by each method, and several judges tasted fish samples and rated each on four variables: y1 = aroma, y2 = flavor, y3 = texture, and y4 =moisture. The data are in the file “fish.csv”. Each entry is an average score for the judges on that fish. Compare the three methods using all four MANOVA tests step by step in addition to using R packages. 
+
+```{r}
+fish <- read.csv("C:/Users/Darui Yen/Downloads/fish.csv", header = T, sep = ",")
+colnames(fish)[1] <- "method"
+
+one <- subset(fish, fish$method == "1", select = c("y1", "y2", "y3", "y4"))
+two <- subset(fish, fish$method == "2", select = c("y1", "y2", "y3", "y4"))
+three <- subset(fish, fish$method == "3", select = c("y1", "y2", "y3", "y4"))
+
+t11 <- sum(fish$y1^2) - sum(fish$y1)^2/nrow(fish)
+t22 <- sum(fish$y2^2) - sum(fish$y2)^2/nrow(fish)
+t33 <- sum(fish$y3^2) - sum(fish$y3)^2/nrow(fish)
+t44 <- sum(fish$y4^2) - sum(fish$y4)^2/nrow(fish)
+t12 <- sum(fish$y1*fish$y2) - sum(fish$y1)*sum(fish$y2)/nrow(fish)
+t13 <- sum(fish$y1*fish$y3) - sum(fish$y1)*sum(fish$y3)/nrow(fish)
+t14 <- sum(fish$y1*fish$y4) - sum(fish$y1)*sum(fish$y4)/nrow(fish)
+t34 <- sum(fish$y3*fish$y4) - sum(fish$y3)*sum(fish$y4)/nrow(fish)
+t23 <- sum(fish$y2*fish$y3) - sum(fish$y2)*sum(fish$y3)/nrow(fish)
+t24 <- sum(fish$y2*fish$y4) - sum(fish$y2)*sum(fish$y4)/nrow(fish)
+Tmatrix <- matrix(c(t11,t12,t13,t14,t12,t22,t23,t24,t13,t23,t33,t34,t14,t24,t34,t44), 4, 4)
+
+b11 <- (sum(one$y1)^2 + sum(two$y1)^2 + sum(three$y1)^2)/nrow(one) - sum(fish$y1)^2/nrow(fish)
+b22 <- (sum(one$y2)^2 + sum(two$y2)^2 + sum(three$y2)^2)/nrow(one) - sum(fish$y2)^2/nrow(fish)
+b33 <- (sum(one$y3)^2 + sum(two$y3)^2 + sum(three$y3)^2)/nrow(one) - sum(fish$y3)^2/nrow(fish)
+b44 <- (sum(one$y4)^2 + sum(two$y4)^2 + sum(three$y4)^2)/nrow(one) - sum(fish$y4)^2/nrow(fish)
+b12 <- (sum(one$y1)*sum(one$y2) + sum(two$y1)*sum(two$y2) + sum(three$y1)*sum(three$y2))/nrow(one) - sum(fish$y1)*sum(fish$y2)/nrow(fish)
+b13 <- (sum(one$y1)*sum(one$y3) + sum(two$y1)*sum(two$y3) + sum(three$y1)*sum(three$y3))/nrow(one) - sum(fish$y1)*sum(fish$y3)/nrow(fish)
+b14 <- (sum(one$y1)*sum(one$y4) + sum(two$y1)*sum(two$y4) + sum(three$y1)*sum(three$y4))/nrow(one) - sum(fish$y1)*sum(fish$y4)/nrow(fish)
+b23 <- (sum(one$y2)*sum(one$y3) + sum(two$y2)*sum(two$y3) + sum(three$y2)*sum(three$y3))/nrow(one) - sum(fish$y2)*sum(fish$y3)/nrow(fish)
+b24 <- (sum(one$y2)*sum(one$y4) + sum(two$y2)*sum(two$y4) + sum(three$y2)*sum(three$y4))/nrow(one) - sum(fish$y2)*sum(fish$y4)/nrow(fish)
+b34 <- (sum(one$y3)*sum(one$y4) + sum(two$y3)*sum(two$y4) + sum(three$y3)*sum(three$y4))/nrow(one) - sum(fish$y3)*sum(fish$y4)/nrow(fish)
+Bmatrix <- matrix(c(b11,b12,b13,b14,b12,b22,b23,b24,b13,b23,b33,b34,b14,b24,b34,b44), 4, 4)
+
+Wmatrix <- Tmatrix - Bmatrix
+lamda <- det(Wmatrix)/det(Tmatrix)
+Fcal <- ((1-sqrt(lamda))/sqrt(lamda))*((nrow(fish)-3-4+1)/4)
+pvalue <- 1 - pf(Fcal, 2*4, 2*(36-3-4+1))
+pvalue
+```
+首先計算Wilk's lamda statistics並進行F檢定，檢定之pvalue < 0.01，表示不同的烹煮魚的方法確實存在顯著差異。
+
+```{r}
+royeigen <- eigen(solve(Wmatrix)%*%Bmatrix)$values[1]
+Fcal <- royeigen*((36-4-1)/4)
+pvalue <- 1 - pf(Fcal, 4, 31)
+pvalue
+```
+接著計算Roy's largest eignevalue並進行F檢定，檢定之pvalue < 0.01，表示不同的烹煮魚的方法確實存在顯著差異。
+
+```{r}
+eigenval <- eigen(solve(Wmatrix)%*%Bmatrix)$values
+V <- sum(eigenval/(1+eigenval))
+Fcal <- (V*(36-3-4+2))/(4*(2-V))
+pvalue <- 1 - pf(Fcal, 4*2, 2*(36-3-4+2))
+pvalue
+```
+接著計算Pillai's trace statistic並進行F檢定，檢定之pvalue < 0.01，表示不同的烹煮魚的方法確實存在顯著差異。
+
+```{r}
+U <- sum(eigenval)
+Fcal <- (U*58)/(2*8)
+pvalue <- 1 - pf(Fcal, 8, 58)
+pvalue
+```
+最後計算Lawley-Hotelling statistic並進行F檢定，檢定之pvalue < 0.01，表示不同的烹煮魚的方法確實存在顯著差異。
+
+```{r}
+fish$method <- as.factor(fish$method)
+combinefish <- cbind(fish$y1, fish$y2, fish$y3, fish$y4)
+mano <- manova(combinefish~method, data=fish)
+
+summary(mano, test="Wilks")
+summary(mano, test="Roy")
+summary(mano, test="Pillai")
+summary(mano, test="Hotelling-Lawley")
+```
+使用套件分別針對四種manova方法進行檢定，其計算出之pvalue和以上計算之pvalue皆相同，表示套件之計算結果和從數學定義計算之結果一致。
+
+
+## Problem 3
+The file turtle.dat contains the carapace measurements for 24 female and 24 male turtles. Use Box's M-test to test $H_0:\;\Sigma_1=\Sigma_2=\Sigma$, where $\Sigma_1$ is the population covariance matrix for carapace measurements for female turtles, and $\Sigma_2$ is the population covariance matrix for carapace measurements for male turtles. Set $\alpha=0.05$.
+Implement the test step-by-step and compare the result obtained by R package. 
+
+```{r}
+library(covTestR)
+turtle <- read.delim("C:/Users/Darui Yen/Downloads/turtle.dat", header = F, sep = "")
+male <- subset(turtle, turtle$V4 == "male", select = c("V1", "V2", "V3"))
+female <- subset(turtle, turtle$V4 == "female", select = c("V1", "V2", "V3"))
+poolcov <- (23*cov(male) + 23*cov(female))/46
+
+M <- 2*(24-1)*log(det(poolcov)) - (24-1)*(log(det(cov(male))) + log(det(cov(female))))
+C <- 1 - (26/24)*((2/23) - (2/46)) 
+X <- M*C
+pvalue <- 1 - pchisq(X, 6)
+
+pvalue
+```
+經由Box's M-test，卡方檢定之pvalue < 0.01，表示公和母海龜共變方矩陣之間的差異應該顯著不為0。
+
+```{r}
+homogeneityCovariances(list(cov(female), cov(male)), covTest = BoxesM)
+```
+由套件計算之$\chi^2$與由數學定義計算得到的$\chi^2$相同。
