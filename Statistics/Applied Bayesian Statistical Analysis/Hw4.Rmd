@@ -1,0 +1,126 @@
+---
+---
+title: "Exploratory Multivariate Data Analysis -- Hw4"
+author: "農藝所碩二 R08621110 閻大瑞"
+output:
+  word_document:
+    toc: yes
+    toc_depth: '4'
+  html_document:
+    code_folding: show
+    theme: simplex
+    toc: yes
+    toc_depth: 4
+    toc_float:
+      collapsed: no
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Problem 1
+#(a)
+Analyze all the spam data using variable selection methods including (a) forward stepwise regression and backward stepwise regression. (12%) (b) Randomly select two thirds of the data as the training dataset and the remaining one third as the test data. (set.seed(1001)) (i) Use the training data to identify the lambda value that gives minimum cross-validated error for lasso regression, ridge regression, and elastic net regression with different alpha values. (20%) (ii) Apply the lambda with minimum cross-validated error to the test data and evaluate their mean square errors. (20%)
+
+```{r, message=FALSE, warning=FALSE}
+require(readr)
+require(broom)
+require(dplyr)
+require(glmnet)
+library(MASS) 
+
+spam <- read.delim("C:/Users/Darui Yen/Downloads/spam.dat", header = T, sep = "")
+spamls <- lm(Y ~ ., data = spam)
+
+spamfwd <- step(lm(Y ~ 1, data = spam), ~ X.1+X.2+X.3+X.4+X.5+X.6+X.7+X.8+X.9+X.10+X.11+X.12+X.13+X.14+X.15+X.16+X.17+X.18+X.19+X.20+X.21+X.22+X.23+X.24+X.25+X.26+X.27+X.28+X.29+X.30+X.31+X.32+X.33+X.34+X.35+X.36+X.37+X.38+X.39+X.40+X.41+X.42+X.43+X.44+X.45+X.46+X.47+X.48+X.49+X.50+X.51+X.52+X.53+X.54+X.55+X.56+X.57, data = spam, direction = "forward")
+spambck <- step(spamls, direction = "backward")
+```
+
+```{r}
+tidy(spamfwd)
+tidy(spambck)
+```
+
+由forward selection選出來的模型，共包含47個變數;由backward selection選出來的模型則包含46個變數。
+
+#(b)
+```{r}
+set.seed(1001)
+index <- sample(nrow(spam), (2/3)*nrow(spam), replace = F)
+train <- as.matrix(spam[index,])
+test <- as.matrix(spam[-index,])
+
+for (i in 0:10){
+  assign(paste("fit", i, sep=""), cv.glmnet(train[,1:57], train[,58], type.measure="mse", 
+                                            alpha=i/10,family="gaussian"))
+}
+#fit1 - fit10 為不同alpha下建立的線型模型
+
+minlamda <- c(fit0$lambda.min, fit1$lambda.min, fit2$lambda.min, fit3$lambda.min, fit4$lambda.min, fit5$lambda.min, fit6$lambda.min, fit7$lambda.min, fit8$lambda.min, fit9$lambda.min, fit10$lambda.min)
+min1se <- c(fit0$lambda.1se, fit1$lambda.1se, fit2$lambda.1se, fit3$lambda.1se, fit4$lambda.1se, fit5$lambda.1se, fit6$lambda.1se, fit7$lambda.1se, fit8$lambda.1se, fit9$lambda.1se, fit10$lambda.1se)
+
+
+which(min1se == min(min1se)) - 1
+minlamda[which(min1se == min(min1se))]
+plot(fit10, main="LASSO")
+```
+利用cross-validation，計算$\alpha$介於0-1之間，分別對應到的最小mse之$\lambda$值;接著可以找出當$\alpha$值為10/10時有最小之mse，表示以lasso建立模型，在訓練資料中能達到最小的mse。
+另外，以圖也可以看出lasso($\alpha = 1$)模型中mse最小時的$log(\lambda)$數值約為-6.25，換算此時的$\lambda$為0.001917。
+
+
+```{r}
+yhat0 <- predict(fit0, s=fit10$lambda.min, newx=test[,1:57])
+yhat1 <- predict(fit1, s=fit10$lambda.min, newx=test[,1:57])
+yhat2 <- predict(fit2, s=fit10$lambda.min, newx=test[,1:57])
+yhat3 <- predict(fit3, s=fit10$lambda.min, newx=test[,1:57])
+yhat4 <- predict(fit4, s=fit10$lambda.min, newx=test[,1:57])
+yhat5 <- predict(fit5, s=fit10$lambda.min, newx=test[,1:57])
+yhat6 <- predict(fit6, s=fit10$lambda.min, newx=test[,1:57])
+yhat7 <- predict(fit7, s=fit10$lambda.min, newx=test[,1:57])
+yhat8 <- predict(fit8, s=fit10$lambda.min, newx=test[,1:57])
+yhat9 <- predict(fit9, s=fit10$lambda.min, newx=test[,1:57])
+yhat10 <- predict(fit10, s=fit10$lambda.min, newx=test[,1:57])
+
+minmse <- rep(NA, 11)
+minmse[1] <- mean((test[,58] - yhat0)^2)
+minmse[2] <- mean((test[,58] - yhat1)^2)
+minmse[3] <- mean((test[,58] - yhat2)^2)
+minmse[4] <- mean((test[,58] - yhat3)^2)
+minmse[5] <- mean((test[,58] - yhat4)^2)
+minmse[6] <- mean((test[,58] - yhat5)^2)
+minmse[7] <- mean((test[,58] - yhat6)^2)
+minmse[8] <- mean((test[,58] - yhat7)^2)
+minmse[9] <- mean((test[,58] - yhat8)^2)
+minmse[10] <- mean((test[,58] - yhat9)^2)
+minmse[11] <- mean((test[,58] - yhat10)^2)
+
+min(minmse)
+mean(minmse)
+```
+使用cross-validation後找到的最小$\lambda = 0.001917$，以驗證資料組合建立模型，計算$\alpha$介於0-1之間時的mse。
+由以上結果，不同$\alpha$值下的模型，其mse大多落在0.11左右，最小值為11.02。
+
+
+##Problem 2
+Carry out a principal component analysis on the engineer data as follows. Ignore groups and use a correlation matrix based on all 40 observations. (48%)(pilots.dat)
+
+```{r}
+pilot <- read.delim("C:/Users/Darui Yen/Downloads/pilots.dat", header = F, sep = "")
+corpi <- cor(pilot[,2:7])
+eigen <- eigen(corpi)
+eigenprop <- eigen$values/sum(as.vector(eigen$values))
+
+eigen$values
+eigenprop
+plot(eigen$values, type = "l", main = "scree plot", xlab = "PC")
+sum(eigenprop[1:4])
+```
+首先計算相關矩陣之特徵值，以及各個特徵值所佔之比例。由數值來看，前四個最大的主成分即可以解釋資料超過83%的變異，並且由scree圖也可以看出只有前四個特徵值大於1，且第五個特徵值開始數值下降趨勢趨於平緩，因此若要進行資料降維，只需保留前四個主成分即能大致代表資料變異。
+
+```{r}
+pca2 <- princomp(corpi, cor=TRUE)
+biplot(pca2, col=c("red","blue"))
+```
+接著繪製雙標圖，可以觀察各個變數之間的相關性，以及在前兩個主成分座標上對應的位置。
