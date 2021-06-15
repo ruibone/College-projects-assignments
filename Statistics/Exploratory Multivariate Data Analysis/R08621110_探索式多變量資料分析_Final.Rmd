@@ -1,0 +1,168 @@
+---
+title: "Final"
+author: "R08621110 閻大瑞 "
+date: "1/11/2021"
+output: html_document
+---
+```{r}
+library(CCA)
+library(MASS)
+library(rpart)
+library(rpart.plot)
+library(psych)
+```
+
+
+## Problem 1 (20%)
+Timm reported the results of an experiment in which subjects responded to "probe words" at five positions in a sentence. The variables are response times for the jth probe word, $y_j$, $j = 1,2,\cdots, 5$. The data are given in PROBE.dat
+These variables are commensurate (same measurement units and similar means and variances), and the researcher may wish to examine some simple Use the probe word data.
+
+### (a) Obtain loadings for two factors by the principal component method and carry out a varimax rotation.
+
+```{r}
+probe <- read.delim("C:/Users/Darui Yen/Downloads/PROBE.DAT", header = F, sep = "")
+corprobe <- cor(probe)
+
+pcfa <- principal(corprobe, nfactors = 2, rotate = "varimax")
+pcfa$loadings
+```
+此模型下兩個因素之loading和解釋變異比例如上表。
+
+
+### (b) Note the near duplication of loadings for $y_2$ and $y_4$. Is there any indication in the correlation matrix as to why this is so?
+
+```{r}
+cor(probe)
+```
+由相關性矩陣可以看出$y_2$和$y_4$之間的相關性是所有兩兩變數之間最高的，可能因此使得兩變數對於因素的影響程度也相當接近。
+
+
+### (c) Is the rotation satisfactory? Try an oblique rotation.
+
+```{r}
+pcfa2 <- principal(corprobe, nfactors = 2, rotate = "promax")
+pcfa2$loadings
+```
+由於varimax轉軸後，第一個因素內有超過一半的變數loading都很大，並且$y_2$和$y_4$的相依性也很高，結果不甚滿意。
+接著使用了promax轉軸，此轉軸方式屬於oblique rotation，表示因素間並不完全獨立。
+由promax轉軸後的loading來看，各變數之間的loading差異更明顯了，但且$y_2$和$y_4$高相依性的問題仍沒有太大的改善。
+
+
+## Problem 2 (20%)
+The table contains data on breakfast cereals produced by three different American manufacturers: General Mills (G), Kellogg (K), and Quaker (Q). Assuming multivariate normal data with a common covariance matrix, equal costs, and equal priors, 
+### (a) classify the cereal brands according to manufacturer. Compute the estimated E(AER) using the discriminant method.
+
+```{r}
+cerealdata <- read.delim("C:/Users/Darui Yen/Downloads/cerea.dat", header = T, sep = "")
+rownames(cerealdata) <- cerealdata$Brand
+cereal <- cerealdata[,-1]
+
+for (i in 2:9){
+  cereal[,i] <- scale(as.numeric(cereal[,i]))
+}
+
+da <- lda(Manufacturer ~ Calories+Protein+Fat+Sodium+Fiber+Carbohydrates+Sugar+Potassium, cereal,  prior = c(1/3, 1/3, 1/3))
+
+preds <- predict(da, method = "plug-in")$class
+table(preds, cereal$Manufacturer)
+accuracy <- sum(diag(table(preds, cereal$Manufacturer)))/sum(table(preds, cereal$Manufacturer))
+
+AER <- 1-accuracy
+AER
+```
+E(AER) = 0.2093
+
+
+### (b) Interpret the coefficients of the discriminant functions. Does it appear as if some manufacturers are associated with more "nutritional" cereals (high protein, low fat, high fiber, low sugar, and so forth) than others? 
+
+```{r}
+da$scaling
+```
+首先，藉由LD1和LD2的判別式的係數可以看出各變數在不同廠商下的範圍，例如鉀、鈉含量、以及糖和碳水化合物的差異都很大；卡路里和纖維也存在不小的差異；至於脂肪和蛋白質則差異相對小得多。
+
+```{r}
+da$means
+```
+藉由觀察各家廠商的平均也可以看出上述趨勢，例如Q的鉀、鈉、糖和碳水化合物的含量都特別低，可能因為醣類較少，卡路里也特別低。而前面提到LD1和LD2中係數較小且範圍較窄的變數脂肪和蛋白質，確實差異都較小。
+整體來說，可以說是在醣類和鉀鈉上差異較大，脂肪和蛋白質差異較小。
+
+
+### (c) Plot the cereals in the two-dimensional discriminant space, using different plotting symbols to identify the three manufacturers. 
+
+```{r}
+plot(da, main = "discriminant space")
+legend("topright", legend = c("General Mills : G", "Kellogg : K", "Quaker : Q"))
+```
+G表示General Mills；K表示Kellogg；Q表示Quaker。
+
+
+### (d) Apply classifcation tree to classify the data.
+
+```{r}
+fit <- rpart(Manufacturer ~ Calories+Protein+Fat+Sodium+Fiber+Carbohydrates+Sugar+Potassium, data = cereal, method = "class")
+printcp(fit)
+```
+由決策樹結果來看，共使用了脂肪和鉀兩個變數建立模型。
+
+
+```{r}
+prp(fit, faclen = 0, fallen.leaves = TRUE, shadow.col = "gray", extra = 2)  
+```
+由上圖可以看出決策樹的架構，並且能夠發現分類結果正確率相當高 (分子為正確分類個數，分母為總數)。不過若是要計算預測準確度，則需要新的資料，或者將原先的訓練資料切出一部份作為驗證資料。
+
+
+## Problem 3 (20%)
+The file europe.csv shows sources of protein and percentages employed in different industry groups for 22 countries in Europe. Use canonical correlation analysis to investigate the relationship, if any, between the nature of the employment in a country and the type of food that is used for protein.
+
+RM, red meat; WM, white meat; EGG, eggs; MLK, milk; FSH, fish; CLR, creals; SCH, starchy foods; PNO, pulses, nuts, and oilseed; F&V, fruitand vegetables; AGR, agriculture, forestry, and fishing; MIN, mining and quarrying; MAN, manufacturing; PS, power and water supplies; CON, construction; SER, services; FIN, finance; SPS, social and personal services; TC, transport and communications.
+
+```{r}
+europe <- read.csv("C:/Users/Darui Yen/Downloads/europoe.csv", header = T, sep = ",")
+colnames(europe)[1] <- "country"
+for (i in 2:19){
+  europe[,i] <- scale(europe[,i])
+}
+
+X <- europe[,2:10]#food
+Y <- europe[,11:19]#employ
+cano <- cc(X, Y)
+```
+首先將資料前9個變數和後9個變數分為food和employment兩大類。
+
+```{r}
+barplot(cano$cor)
+eigen <- cano$cor^2
+cumsum(eigen)/sum(eigen)
+```
+由barplot可以看出前6個典型變數的相關性都相當高。
+並且，將典型相關平方後，即為eigenvalue。此外，也可以看出前4組典型變數大約可以解釋資料75%的變異。
+
+```{r}
+# Bartlett's test
+# The null hypothesis is that the first (and smaller) canonical correlations are zero.
+n <- nrow(X)
+p <- ncol(X)
+q <- ncol(Y)
+# Bartlett's test statistic as given by Equation 10.3
+test.stat <- -( n - 0.5*(p + q + 3) ) * sum(log(1 - (cano$c^2)))
+test.stat
+# Computing p-value
+P.value <- pchisq(test.stat, df = p*q, lower.tail = FALSE)
+P.value
+```
+由p-value ~ 0.002，表示至少第一組典型變數之間的相關達到顯著，因此可以進一步解釋兩組變數之間的相關。
+
+```{r}
+cano[3:4]
+```
+藉由X和Y兩類變數之loading可以推論那些變數較相關。以解釋變異較大的前四組典型變數來看：
+觀察第一組典型變數，RM-CRL-SCH和AGR-MAN的loading較大，表示農業可能較偏好肉類而不愛澱粉類和麥片；而製造業則相反，較不偏好紅肉類而偏好澱粉類。
+再看第二組典型變數，EGG-RM-WM+MLK+FSH和AGR+SPS之loading較大，表示農林業和服務業可能都較偏好蛋類、魚類和奶類作為蛋白質，而不愛肉類。
+至於第三組典型變數，RM+CRL-EGG-PNO和-MIN-SER之loading較大，，表示服務業和礦業可能都較偏好蛋類和堅果類，而不愛紅肉類和穀物類。
+最後再看第四組典型變數，-MLK-PNO和MIN+MAN+SPS之loading較大，表示礦業、製造業和服務業對於奶類和堅果類都不愛。
+
+```{r}
+plt.cc(cano, var.label = T)
+```
+最後，藉由左上圖可以觀察兩組變數之間的相關性，例如employment類的SPS、SER和food類的SCH、MLK、FSH、EGG距離相當近，表示服務業和蛋白質攝取之間的相關性較高；另一組彼此距離相當相近的變數為PNO、MIN和AGR，表示農林業和礦業對於堅果和油類特別偏好或厭惡，此結果在觀察loading時也有發現。
+而藉由右上圖，也可以看出各筆資料在前兩個維度上呈現之距離。

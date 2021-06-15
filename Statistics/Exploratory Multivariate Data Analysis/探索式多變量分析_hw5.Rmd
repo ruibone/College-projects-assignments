@@ -1,0 +1,77 @@
+---
+title: "hw5"
+author: "農藝所碩二 R08621110 閻大瑞"
+date: "2020/12/6"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+temp <- read.delim("C:/Users/Darui Yen/OneDrive/桌面/temp.dat", header = F, sep = "")
+colnames(temp) <- c("y1", "y2", "y3", "y4", "y5", "y6", "y7", "y8", "y9", "y10", "y11")
+```
+
+##Kaiser-Meyer Olkin (KMO) sampling adequacy statistic
+```{r, warning=FALSE}
+library(psych)
+KMO(temp)
+```
+
+由KMO檢定總體MSA = 0.81(> 0.5)，可以看出變數之間有足夠的共同因素，表示此筆資料適合進行因素分析。
+
+##pcfa & paf
+```{r, warning=FALSE}
+library(rela)
+pcfa <- principal(cor(temp), nfactors=3, rotate ='none')
+paf <- paf(as.matrix(temp), eigcrit=1, convcrit=0.0001)
+cbind("pcfa" = pcfa$communality, "paf" = paf$Communalities[,2])
+```
+
+接著分別進行pcfa和paf；pcfa中設定因素數量為3個，paf中設定eigenvalue要大於1。
+由11個變數的共同性(communities)的比例來看，兩個分析下得到的結果幾乎相同，唯有y7之差異非常大，在pcfa高達0.76，在paf卻不到0.1。這表示y7 = maximum daily relative humidity與其他變數之共同性並不高，所以在paf中community相對低。
+
+##rotation
+```{r}
+pcfar <- principal(cor(temp), nfactors=3, rotate ='varimax')
+pcfar$loadings
+
+pafr <- fa(temp, fm="pa", nfactors = 3,rotate="varimax")
+pafr$loadings
+```
+
+利用varimax轉軸後的pcfa，前三個因素分別可以解釋約0.44、0.28、0.11的資料變異，累積達0.84；varimax轉軸後的paf，其前三個因素則分別可以解釋0.41、0.23、0.12，累積共0.775的資料變異，整體來看略低於pcfa方法。此外，可以注意到轉軸後第一個主成分的解釋變異在pcfa和paf皆上升，以上趨勢都與參考文章相符。
+
+##QQplot
+```{r}
+for (i in 1:11){
+  qqnorm(temp[,i],main = paste0("y", i))
+  qqline(temp[,i])
+}
+
+```
+
+由以上11張QQplot來看，大部分的變數大致上沒有偏離常態分布太多，不過可以注意到y6、y7等少數變數仍明顯偏離常態。
+
+##mle & paf
+```{r, warning=FALSE}
+library(psy)
+mle <- factanal(temp, 3, scores="regression", rotation="none")
+cbind("paf" = paf$Communalities[,2], "mle" = rep(1, length(mle$uniquenesses)) - mle$uniquenesses)
+```
+
+由mle和paf各變數的loading來看，先前觀察到共同性非常低的y7在mle中依然很低，此外y10在此兩種fa方法中也明顯較其他變數為低。
+此外，mle前三個共同因素共可以解釋0.764的資料變異，與paf的0.775非常接近。
+
+##rotation
+```{r}
+mler <- factanal(temp, 3, scores="regression", rotation="varimax")
+mler$loadings
+pafr$loadings
+```
+最後，觀察varimax轉軸後mle和paf兩方法之loading，可以兩種fa方法中看出各變數之loading雖不完全相同，但趨勢非常接近，能夠解釋的資料變異亦非常接近。
+
+此外，mle和paf結果非常相近，也代表mle需要符合常態的假設不必太嚴苛，也能得到相當好的結果。

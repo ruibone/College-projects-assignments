@@ -1,0 +1,131 @@
+---
+---
+
+## problem 1 
+## (a)
+
+```{r }
+setwd("C:/Users/Darui Yen/OneDrive/桌面")
+data <- read.table("hematology.dat", header = F, sep = "")
+colnames(data) <- c("y1","y2","y3","y4","y5","y6")
+
+```
+
+讀取資料，並且替六個變數命名。
+
+  
+
+
+```{r }
+D2 <- mahalanobis(data, colMeans(data), cov(data))
+D2
+```
+
+計算各個樣本與平均值之Mahalabonis距離。
+
+  
+
+
+```{r }
+chisplot <- function(x) {
+  if (!is.matrix(x)) stop("x is not a matrix")
+  n <- nrow(x)
+  p <- ncol(x)
+  xbar <- apply(x, 2, mean)
+  S <- var(x)
+  S <- solve(S)
+  index <- (1:n-0.5)/n
+  xcent <- t(t(x) - xbar)
+  di <- apply(xcent, 1, function(x,S) x %*% S %*% x,S)
+  quant <- qchisq(index,p)
+  plot(quant, sort(di), ylab = "Ordered distances",
+       xlab = "Chi-square quantile", lwd=2,pch=1)
+}
+
+chisplot(as.matrix(data))
+abline(1,1)
+```
+
+畫出卡方分布的qqplot，並加上輔助線(qqline)。其中chisplot()函式參考自上課講義。
+由上圖可以看出，此筆資料大致上和直線貼近，表示大致符合卡方分布；然而數值最大的三個觀測值明顯高於直線，表示很可能為outlier。
+
+  
+
+
+## (b)
+```{r}
+par(mfrow = c(2,3))
+qqnorm(data$y1, ylab = "Ordered Observations y1")
+qqline(data$y1)
+qqnorm(data$y2, ylab = "Ordered Observations y2")
+qqline(data$y2)
+qqnorm(data$y3, ylab = "Ordered Observations y3")
+qqline(data$y3)
+qqnorm(data$y4, ylab = "Ordered Observations y4")
+qqline(data$y4)
+qqnorm(data$y5, ylab = "Ordered Observations y5")
+qqline(data$y5)
+```
+
+上圖為五個變數之qqplot和qqline，藉由此圖可以判斷各變數是否符合常態分布。由此圖可以看出y5是最符合常態的變數，y1、y3、y4的資料分布則都有數值偏大的觀測值比常態分布要來得大的情形。至於y2是其中最不符合線性的資料，因此可以推論較不符合常態。
+
+  
+
+
+## (c)
+
+```{r}
+n <- nrow(data)
+p <- ncol(data)
+w <- 1 - (n*D2)/((n-1)**2) 
+F <- ((n-p-1)/p)*((1/w)-1)
+```
+
+先計算出w值，再以w值計算出相應的F值，以利後續進行統計檢定。
+
+  
+
+
+```{r}
+outlier <- c(0)
+Fcrit <- qf(0.99, p ,(n-p-1))
+for (i in 1:length(w)) {
+  if (F[i] > Fcrit) outlier <- c(outlier, i)
+}
+outlier[-1]
+```
+
+計算該自由度下alpha = 0.01之F臨界值，並判斷由各個樣本之w計算而來之F值是否達到顯著。將各樣本之F值和臨界值比較後，第10、47、50筆資料之F值達到顯著，表示這三筆資料很可能為outlier。
+
+
+
+
+## problem 2
+
+```{r}
+dat <- read.csv("pottery.csv", header = T, sep = ",")
+
+pairs(~Al2O3+Fe2O3+MgO+CaO, data = dat, 
+      col = c("red","yellow","blue","black","green")[dat$kiln])
+```
+
+首先讀取資料，並且畫出前4個變數之間兩兩的散佈圖。圖中的五種顏色表示五個不同的kiln。
+
+
+
+
+```{r}
+library(ggplot2)
+library(GGally)
+
+ggpairs(dat[,-(5:10)],
+        title = "Chemical Comparison", 
+        lower = list(continuous = wrap("density", alpha = 0.5), discrete = "blank", combo="blank"), 
+        diag = list(discrete="blankDiag", continuous = wrap("densityDiag", alpha = 0.5)), 
+        upper = list(combo = "blank", continuous = wrap("points", size = 1, colour = factor(dat$kiln))))
+```
+
+利用ggplot製圖，並且將下三角換成density plot。
+由此圖可以看出四個變數兩兩之間的分佈關係。以氧化鋁和氧化鐵的輪廓圖為例，可以看出資料點共分成明顯的兩群，氧化鐵含量較高的那群數量龐大，並且可以看出氧化鋁含量的差異很大，較偏向於左偏分布；對於氧化鐵低的那群數量則較少，且氧化鋁含量的分布差異也較小一些。若對照到散佈圖，也可以明顯的看出分為兩群並且兩變數的分布情形與輪廓圖呈現的非常相近。此外，也由可以看出兩群明顯具有差異的資料點是自於不同的kiln。
+
+因此，由上三角的分布圖可以分辨針對同一化學物質，不同kiln的分布是否明顯不同。以氧化鎂和氧化鈣的散佈圖為例，黑色資料點的氧化鈣含量大致相同，氧化鎂卻存在很大的變異；而紅色資料點和紫色資料點的氧化鎂程含量相當，氧化鈣含量卻有明顯差異，說明了不同kiln收集而來的資料可能存在化學物質含量上的差異。
