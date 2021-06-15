@@ -1,0 +1,70 @@
+---
+title: "hw_1217"
+author: "農藝所碩二 R08621110 閻大瑞"
+date: "2020/12/17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Ex 20-4
+
+newton-raphson function
+```{r}
+newtonraphson <- function(ftn, x0, tol = 1e-9, max.iter = 100) {
+  x <- x0         # x0: the initial value
+  fx <- ftn(x)
+  iter <- 0
+  while ((max(abs(fx[[1]])) > tol) & (iter < max.iter)) {
+    x <- x - solve(fx[[2]]) %*% fx[[1]]
+    fx <- ftn(x)
+    iter <- iter + 1
+  }
+  if (max(abs(fx[[1]])) > tol) {
+    cat('Algorithm failed to converge\n')
+    return(NULL)
+  } else {      # max(abs(fx[[1]])) <= tol
+    cat("Algorithm converged\n")
+    return(x)
+  }
+}
+```
+
+
+```{r}
+rate <- read.csv("C:/Users/Darui Yen/OneDrive/桌面/rate.csv", header= T, sep = ",")
+rate$sex <- ifelse(rate$sex == "m", 1, 0)
+
+dummy <- matrix(0, nrow(rate), 11)
+for (i in 1:nrow(rate)-1) {
+  dummy[i+1,rate$Age[i]%%12] <- 1
+}
+
+Y <- rate$Death
+X <- cbind(rep(1, nrow(rate)), dummy, rate$sex)
+ftn <- function(betacoef) {
+  mu <- exp(X%*%betacoef + log(rate$PY/100000))
+  gradient <- t(X)%*%(Y-mu)
+  Hessian <- -t(X)%*%diag(c(mu))%*%X
+  loglikelihhod <- sum(-mu + Y*log(mu) - log(factorial(Y)))
+  return(list(gradient, Hessian, loglikelihhod))
+}
+```
+
+## (1) beta estimation
+```{r}
+beta <- newtonraphson(ftn, rep(0, 13))
+beta
+```
+
+## (2) variance-covariance matrix 
+```{r}
+solve(-ftn(beta)[[2]])
+```
+
+## (3) log-likelihood
+```{r}
+ftn(beta)[[3]]
+```

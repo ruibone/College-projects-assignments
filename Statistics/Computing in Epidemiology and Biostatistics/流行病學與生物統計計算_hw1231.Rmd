@@ -1,0 +1,81 @@
+---
+title: "流行病學與生物統計計算_hw1231"
+author: "農藝所碩二 R08621110 閻大瑞"
+date: "2020/12/31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Ex 22-1
+
+```{r}
+newtonraphson <- function(ftn, x0, tol = 1e-9, max.iter = 100) {
+  x <- x0        
+  fx <- ftn(x)
+  iter <- 0
+  while ((max(abs(fx[[1]])) > tol) & (iter < max.iter)) {
+    x <- x - solve(fx[[2]]) %*% fx[[1]]
+    fx <- ftn(x)
+    iter <- iter + 1
+  }
+  if (max(abs(fx[[1]])) > tol) {
+    cat('Algorithm failed to converge\n')
+    return(NULL)
+  } else {      
+    return(x)
+  }
+}
+```
+
+
+
+
+```{r}
+size <- c(30,230,430,630)
+betaco <- rep(c(-6,1,0.005), 4)
+MLEnew <- matrix(NA, 1000, 12)
+
+  
+for (j in 1:length(size)) {
+  for (i in 1:1000) {
+    set.seed(i)
+    gpa <- rnorm(size[j], 3.1, 0.3)
+    gre <- rnorm(size[j], 580, 80)
+    pi <- (exp(-6 + gpa + 0.005*gre)/(1+exp(-6 + gpa + 0.005*gre)))
+    Y <- NA
+    for (k in 1:size[j]) {
+      Y <- c(Y, sample(x = c(0,1), size = 1, prob = c((1-pi[k]), pi[k]), replace = F))
+    }
+    Y <- Y[-1]
+    X <- cbind(rep(1, size[j]), gpa, gre)
+    ftn <- function(betacoef) {
+      pi1 <- exp(X%*%betacoef) / (1 + exp(X%*%betacoef))
+      gradient <- t(X)%*%(Y - pi1)
+      heissan <- -t(X)%*%diag(c(pi1*(1-pi1)))%*%X
+      loglikelihood <- sum(Y*log(pi1/(1-pi1)) + log(1 - pi1))
+      return(list(gradient, heissan, loglikelihood))
+    }
+
+    index1 <- 3*j-2
+    index2 <- 3*j
+    MLEnew[i,index1:index2] <- as.numeric(newtonraphson(ftn, c(0,0,0)))
+  }
+}
+
+bias <- colMeans(MLEnew) - betaco
+bias
+```
+bias中的1-3、4-6、7-9、10-12分別為樣本數由小到大的beta估計值 - beta真值，由此結果可以看出樣本數越大，各個beta的bias都會越小。
+
+```{r}
+boxplot(MLEnew[,1], MLEnew[,4], MLEnew[,7], MLEnew[,10], main = expression(paste(beta,"0")))
+abline(h = betaco[1], col = 2)
+boxplot(MLEnew[,2], MLEnew[,5], MLEnew[,8], MLEnew[,11], main = expression(paste(beta,"1")))
+abline(h = betaco[1], col = 2)
+boxplot(MLEnew[,3], MLEnew[,6], MLEnew[,9], MLEnew[,12], main = expression(paste(beta,"2")))
+abline(h = betaco[1], col = 2)
+```
+由以上三張boxplot也可以看出樣本越大不僅期望值估計越準，變方也越小。

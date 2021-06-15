@@ -1,0 +1,87 @@
+---
+title: "流行病學與生物統計計算_hw0107"
+author: "農藝所碩二 R08621110 閻大瑞"
+date: "2021/1/7"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Ex 23-1
+```{r}
+newtonraphson <- function(ftn, x0, tol = 1e-9, max.iter = 100) {
+  x <- x0         # x0: the initial value
+  fx <- ftn(x)
+  iter <- 0
+  while ((max(abs(fx[[1]])) > tol) & (iter < max.iter)) {
+    x <- x - solve(fx[[2]]) %*% fx[[1]]
+    fx <- ftn(x)
+    iter <- iter + 1
+  }
+  if (max(abs(fx[[1]])) > tol) {
+    cat('Algorithm failed to converge\n')
+    return(NULL)
+  } else {      # max(abs(fx[[1]])) <= tol
+    return(x)
+  }
+}
+```
+
+```{r}
+size <- 1000
+iteration <- 100
+b1 <- c(0,0.5,0.8)
+sig <- seq(0.01,0.05,0.01)
+mbeta <- matrix(NA, iteration, 3)
+pvalue <- NA
+reject <- matrix(NA, length(b1), length(sig))
+
+
+for (b in 1:length(b1)) {
+  for (i in 1:iteration) {
+    set.seed(i)
+    gpa <- rnorm(size, 3.1, 0.3)
+    gre <- rnorm(size, 580, 80)
+    pi <- (exp(-6 + b1[b]*gpa + 0.005*gre)/(1+exp(-6 + b1[b]*gpa + 0.005*gre)))
+    Y <- NA
+    for (k in 1:size) {
+      Y <- c(Y, sample(x = c(0,1), size = 1, prob = c((1-pi[k]), pi[k]), replace = F))
+    }
+    Y <- Y[-1]
+    X <- cbind(rep(1, size), gpa, gre)
+    ftn <- function(betacoef) {
+      pi1 <- exp(X%*%betacoef) / (1 + exp(X%*%betacoef))
+      gradient <- t(X)%*%(Y - pi1)
+      heissan <- -t(X)%*%diag(c(pi1*(1-pi1)))%*%X
+      loglikelihood <- sum(Y*log(pi1/(1-pi1)) + log(1 - pi1))
+      return(list(gradient, heissan, loglikelihood))
+    }
+  
+    mbeta[i,] <- as.numeric(newtonraphson(ftn, c(0,0,0)))
+    seMLE <- diag(solve(-ftn(mbeta[i,])[[2]]))
+    pvalue[i] <- ((1-pnorm(abs(mbeta[i,]/seMLE)[2], 0, 1))*2)
+  }
+
+  for(j in 1:length(sig)){
+    reject[b,j] <- mean(pvalue < sig[j])
+  }
+}
+```
+
+
+```{r}
+matplot(sig, t(reject), col = 1:length(b1), pch = 1:length(b1), lty = 1:length(b1), type = "b", frame = F, xlab = "Significance level", ylab = "Rejection rate")
+legend(0.04,reject[1,4]+0.05, expression(paste(beta,"=0")),bty="n")
+legend(0.04,reject[2,4]+0.05, expression(paste(beta,"=0.5")),bty="n")
+legend(0.04,reject[3,4]+0.05, expression(paste(beta,"=0.8")),bty="n")
+
+```
+
+```{r}
+reject
+```
+reject矩陣中的每一列分別為$\beta = 0$、$\beta = 0.5$、$\beta = 0.8$之power，每一行則分別表示顯著水準設定為0.01 - 0.05。

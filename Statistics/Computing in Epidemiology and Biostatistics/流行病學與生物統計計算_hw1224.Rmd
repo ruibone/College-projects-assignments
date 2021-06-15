@@ -1,0 +1,89 @@
+---
+title: "流行病學與生物統計計算_hw1224"
+author: "農藝所碩二 R08621110 閻大瑞"
+date: "2020/12/24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Ex 21
+
+```{r}
+newtonraphson <- function(ftn, x0, tol = 1e-9, max.iter = 100) {
+  x <- x0 # x0: the initial value
+  fx <- ftn(x)
+  iter <- 0
+  while ((abs(fx[1]) > tol) & (iter < max.iter)) {
+    x <- x - fx[1]/fx[2]
+    fx <- ftn(x)
+    iter <- iter + 1
+  }
+  if (abs(fx[1]) > tol) {
+    cat("Algorithm failed to converge\n")
+    return(NULL)
+  } else { # abs(fx[1]) <= tol
+  return(x)
+  }
+}
+```
+
+## 1.
+# exact lower bound
+```{r}
+interval <- data.frame(exact_lower = rep(NA, 1000), exact_upper = rep(NA, 1000), asymptotic_lower = rep(NA, 1000), 
+                         asymptotic_upper = rep(NA, 1000), data = rep(NA, 1000))
+
+for (i in 1:1000) {
+  set.seed(i)
+  data <- rbinom(1, size = 20, prob = 0.15)
+  interval$data[i] <- data
+  ftnl <- function(p) {
+    fp <- -0.975
+    dfp <- 0
+    for (k in 0:(data-1)) {
+      fp <- fp + choose(20, k)*(p^k)*((1-p)^(20-k))
+      dfp <- dfp + choose(20, k)*(k*(p^(k-1))*((1-p)^(20-k)) - (p^k)*(20-k)*((1-p)^(19-k)))
+    }
+    return(c(fp, dfp))
+  }
+  if (data > 0) {
+    interval$exact_lower[i] <- newtonraphson(ftnl, data/20, 1e-9)
+  } else {
+    interval$exact_lower[i] <- 0
+  }
+}
+```
+
+# exact upper bound
+```{r}
+for (i in 1:1000) {
+  data <- interval$data[i]
+  ftnu <- function(p) {
+    fp <- -0.025
+    dfp <- 0
+    for (k in 0:data) {
+      fp <- fp + choose(20, k)*(p^k)*((1-p)^(20-k))
+      dfp <- dfp + choose(20, k)*(k*(p^(k-1))*((1-p)^(20-k)) - (p^k)*(20-k)*((1-p)^(19-k)))
+    }
+    return(c(fp, dfp))
+  }
+  interval$exact_upper[i] <- newtonraphson(ftnu, (data/20)+0.1, 1e-9)
+  interval$exact_upper[i] <- ifelse(interval$exact_upper[i] < 0, 0, next)
+}
+```
+
+## asymptotic lower&upper bound
+```{r}
+phat <- interval$data/20
+interval$asymptotic_lower <- phat - qnorm(0.975)*sqrt((phat*(1-phat))/20)
+interval$asymptotic_upper <- phat + qnorm(0.975)*sqrt((phat*(1-phat))/20)
+```
+
+# confidence interval
+```{r}
+colMeans(interval)
+```
+由以上平均可知，95% exact confidence interval = [0.0343, 0.3727]，長度為0.3384；95% asymptotic confidence interval = [0.0037, 0.2957]，長度為0.2920。
