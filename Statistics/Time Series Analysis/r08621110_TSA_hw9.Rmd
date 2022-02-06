@@ -1,0 +1,72 @@
+---
+title: "r08621110_TSA_hw9"
+author: "農藝所碩三 R08621110 閻大瑞"
+date: "2021/12/30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1.
+```{r}
+library(GENEAread)
+library(plot3D)
+set.seed(110)
+rv_1 = rnorm(1024, 0, 1)
+rv_2 = rt(1024, 10)
+rv_3 = rexp(1024, 1.6)
+```
+
+
+### (a).
+```{r}
+fft_1 = Mod(fft(rv_1))
+fft_2 = Mod(fft(rv_2))
+fft_3 = Mod(fft(rv_3))
+plot(fft_1[1:512], type = 'l', main = 'Amplitudes Plot (Normal Distribution)', ylab = 'strength')
+plot(fft_2[1:512], type = 'l', main = 'Amplitudes Plot (t Distribution)', ylab = 'strength')
+plot(fft_3[1:512], type = 'l', main = 'Amplitudes Plot (Exponential Distribution)', ylab = 'strength')
+```
+
+
+### (b).
+```{r}
+stft_1 = stft(rv_1)
+stft_2 = stft(rv_2)
+stft_3 = stft(rv_3)
+contour2D(stft_1$values, main = 'Time-Frequency Contours (Normal Distribuiton)', xlab = 'time', ylab = 'frequency')
+contour2D(stft_2$values, main = 'Time-Frequency Contours (t Distribuiton)', xlab = 'time', ylab = 'frequency')
+contour2D(stft_3$values, main = 'Time-Frequency Contours (Exponential Distribuiton)', xlab = 'time', ylab = 'frequency')
+```
+
+### (c).
+由fft，常態分布和t分布在各個頻率皆有一定之強度，沒有特定趨勢，指數分布則是在頻率最低之處有極強之訊號，其他頻率幾乎都沒有強度。\
+由stft，各分布在各頻率皆有較強之訊號，然而常態有較強訊號之時間點最多，t分布次之，指數分布則最少。
+
+## 2.
+```{r}
+library(forecast)
+model = Arima(ts(rnorm(1000), freq = 1), order = c(2, 1, 0), seasonal = c(0, 1, 1))
+ts_1 = simulate(model, nsim = 1024)
+```
+
+
+### (a).
+```{r}
+fft_4 = Mod(fft(ts_1))
+plot(fft_4[1:512], type = 'l', main = 'Amplitudes Plot (Seasonal Time Series)', ylab = 'strength')
+```
+
+
+### (b).
+```{r}
+stft_4 = stft(ts_1)
+contour2D(stft_4$values, main = 'Time-Frequency Contours (Seasonal Time Series)', xlab = 'time', ylab = 'frequency')
+```
+
+
+### (c).
+由fft，時間序列之訊號強度在低頻時最大，並且極快速遞減，往後趨近於0。\
+由stft，各時間點與各頻率下皆有一定之強度。

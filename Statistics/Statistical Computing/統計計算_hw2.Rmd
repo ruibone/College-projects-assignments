@@ -1,0 +1,74 @@
+---
+title: "統計計算_hw2"
+author: "農藝所碩二 R08621110 閻大瑞"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message = F}
+library(EnvStats)
+```
+
+# 1.
+```{r}
+g <- function(x) (x^2/sqrt(2*pi))*exp(-x^2/2)*(x >= 1)
+x <- rcauchy(10000)
+y <- rexp(10000) 
+
+fg1 <- g(x)/dcauchy(x)
+fg2 <- g(y)/dexp(y)
+
+c(mean(fg1), mean(fg2))
+```
+
+### variance of important functions 
+```{r}
+c(sd(fg1), sd(fg2))
+```
+
+### distribution
+```{r}
+par(mfrow = c(2,1))
+plot(density(fg1), main = "cauchy as important function")
+plot(density(fg2), main = "exponential as important function")
+par(mfrow = c(1,1))
+```
+
+以exponential distribution 作為importance function有較小的變方，因為此分布與常態分布較為接近。
+
+### sampling importance resampling
+```{r}
+y <- rexp(10000)
+w <- g(y)/dexp(y)
+p <- w/sum(w)
+target <- sample(fg2, size = 1000, replace = T, prob = p)
+plot(density(target), main = "SIR")
+
+```
+
+
+# 2.
+```{r}
+f <- function(x) (10*x)/(2+x^(1/4))
+g <- function(x) x
+
+u <- runif(10000, 0, 10)
+A <- f(u)
+B <- g(u)
+C <- -cov(A,B)/var(B)
+control <- A + C*(B - mean(B))
+
+```
+### integral using the control variate
+```{r}
+mean(control)
+```
+
+### variance reduced by the control variate
+```{r}
+(var(A) - var(control))/var(A)
+```
+變方減少了約99%。

@@ -1,0 +1,111 @@
+---
+title: "hw0303"
+author: "農藝所碩二 R08621110 閻大瑞"
+date: "2021/3/9"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(GoFKernel)
+```
+
+## 1.
+```{r}
+rejection1 <- function(alpha, beta) {
+  f <- function(x) (gamma(alpha+beta)/(gamma(alpha)*gamma(beta)))*(x^(alpha-1))*((1-x)^(beta-1))
+  h <- 1
+  k <- gamma(alpha+beta)/(gamma(alpha)*gamma(beta))*(((alpha-1)/(alpha+beta-2))^(alpha-1))*(1-((alpha-1)/(alpha+beta-2))^(beta-1))
+  
+  while (TRUE) {
+    X <- runif(1, 0, 1)
+    Y <- runif(1, 0, k*h)
+    if (Y < f(X)) return(X)
+  }
+}
+
+result1 <- c()
+for (i in 1:1000) result1[i] <- rejection1(3,2)
+
+hist(result1, breaks = 40,  prob = T, xlab = "x", ylab = "p.d.f.", main = "Beta(3,2)")
+lines(seq(0,1,0.0001), dbeta(seq(0,1,0.0001), 3, 2))
+```
+
+## 2.
+```{r}
+rejection2 <- function(r=1) {
+  f <- function(x) sqrt(r^2-x^2)*(2/(pi*r^2))
+  h <- (1/2)*r #uniform
+  k <- 4/pi
+  while (TRUE) {
+    X <- runif(1, -r, r)
+    Y <- runif(1, 0, k*h)
+    if (Y < f(X)) return(X)
+  }
+}
+
+result2 <- c()
+for (i in 1:1000) result2[i] <- rejection2() 
+
+r=1
+hist(result2, breaks = 40, freq = F, xlab = "x", ylab = "p.d.f", main = bquote(frac(2,pi*r^2)*sqrt(r^2-x^2)))
+curve(sqrt(1^2-x^2)*(2/(pi*1^2)), add = T)
+```
+
+## 3.
+```{r}
+alpha <- 2
+beta <- 4
+pareto <- function(x) (beta*(alpha^beta))/((x+alpha)^(beta+1))
+invf <- inverse(pareto, 0, Inf)
+
+result3 <- sapply(runif(1000,0,1), invf)
+hist(result3, breaks = 40, prob = T, xlab = "x", ylab = "p.d.f", main = "Pareto distribution")
+curve((beta*(alpha^beta))/((x+alpha)^(beta+1)), add = T)
+```
+
+## 4.
+```{r}
+x1 <- rnorm(5000, 0, 1)
+x2 <- rnorm(5000, 4, 2)
+
+#convolution
+s <- x1 + x2
+hist(s, breaks = 100, freq = F, xlab = "x", ylab = "probability", main = "convolution of normal distribution")
+lines(seq(-5,10,15/5000), dnorm(seq(-5,10,15/5000), 4, 2))
+```
+
+```{r}
+#mixture
+k <- sample(1:2, 5000, replace = T)
+m <- c()
+for (i in 1:5000) {
+  m[i] <- ifelse(k[i] == 1, rnorm(1,0,1), rnorm(1,4,2))
+}
+
+hist(m, breaks = 100, freq = F, xlab = "x", ylab = "probability", main = "mixture of normal distribution")
+lines(seq(-5,10,15/5000), (0.5*dnorm(seq(-5,10,15/5000), 4, 2)+0.5*dnorm(seq(-5,10,15/5000), 0, 1)))
+```
+
+```{r}
+hyper <- function(x) (choose(300,x)*choose(200,(100-x)))/choose(500,100) #N=500, K=300, n=100
+hyperpdf <- c()
+for (i in 0:100) hyperpdf[i+1] <-  hyper(i)
+hypercdf <- cumsum(hyperpdf)
+
+invhyper <- function(x){
+  u <- runif(1, 0, 1)
+  index <- 1
+  while (hypercdf[index] < u) index <- index + 1
+  return (index)
+}
+
+result5 <- sapply(1:1000, invhyper)
+
+hist(result5, breaks = 20, prob = T, xlab = "x", ylab = "p.m.f", main = "hypergeometric distribution")
+lines(hyperpdf)
+```
+

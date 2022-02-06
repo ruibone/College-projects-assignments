@@ -1,0 +1,207 @@
+---
+title: "TimeSeriesAnalysis_hw6"
+author: "農藝所碩三 R08621110 閻大瑞"
+date: "2021/12/5"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(TSA)
+library(tseries)
+set.seed(12060)
+```
+
+## 1.
+### (a)
+ARMA(1,1) ==> $y_t$ = 0.8$*y_{t-1}$ + $a_t$ - 0.4$*a_{t-1}$  
+首先模擬長度為100之$y_t$和$a_t$向量，接著將$\phi$和$\theta$帶入公式計算自相關係數之理論值，並選取$\rho_0$至$\rho_{19}$作圖。
+
+
+```{r}
+phi = 0.8
+theta = 0.4
+a_vector = c(0, rnorm(100, 0, 1))
+y_vector = c(0)
+for (i in 1:100) {
+  y_t = phi*y_vector[i] + a_vector[i+1] - theta*a_vector[i]
+  y_vector = c(y_vector, y_t)
+}
+a_vector = a_vector[2:101]
+y_vector = y_vector[2:101]
+```
+
+```{r}
+rho = c(1)
+rho[2] = (phi - theta)*(1 - phi*theta)*(1 - 2*phi*theta + theta^2)^(-1)
+for (i in 3:20) {
+  rho[i] = rho[i-1]*phi
+}
+
+plot(0:19, rho, main = 'Theoretical Autocorrelation Lag of ARMA(1,1)', xlab = 'lags')
+for (i in 0:19) {
+  segments(i, 0, i, rho[i+1])
+}
+```
+
+
+### (b)
+
+實際計算此筆模擬資料之自相關係數，可以發現前段的數值和趨勢都非常相近，然而到了中段以後自相關係數又開始上升，直到接近尾段才又遞減，此趨勢與理論值相差不少。
+
+```{r}
+data_acf = acf(y_vector, plot = TRUE)
+```
+
+
+### (c)
+
+計算eacf並觀察結果，ARMA(1,1)為較合理且最為簡約之結果。
+
+```{r}
+eacf(y_vector, ar.max = 4, ma.max = 4)
+```
+
+
+### (d)
+
+重新模擬長度為48之序列，根據計算結果，自相關係數的趨勢更遠離了理論值一些，實際數值從一開始差異便很大，本應隨時間遞減的趨勢亦不明顯，表示資料量變少會使得結果較為不準確；而eacf的結果矩陣並不完全相同，並且依據計算之結果，應選擇AR(1)或者MA(1)較為合適。
+
+```{r}
+a_vector = c(0, rnorm(48, 0, 1))
+y_vector = c(0)
+for (i in 1:48) {
+  y_t = phi*y_vector[i] + a_vector[i+1] - theta*a_vector[i]
+  y_vector = c(y_vector, y_t)
+}
+a_vector = a_vector[2:49]
+y_vector = y_vector[2:49]
+```
+
+```{r}
+acf(y_vector, plot = TRUE)
+```
+
+```{r}
+eacf(y_vector, ar.max = 4, ma.max = 4)
+```
+
+
+### (e)
+
+重新模擬長度為200之序列，根據計算結果，自相關係數之數值與理論值相當相近，自相關係數隨時間增加而遞減之趨勢也跟理論值非常相近，表示資料量增加的同時可以使變異減少;而eacf之結果則與序列長度為100時相當接近，並且都選出了ARMA(1,1)。
+
+```{r}
+a_vector = c(0, rnorm(200, 0, 1))
+y_vector = c(0)
+for (i in 1:200) {
+  y_t = phi*y_vector[i] + a_vector[i+1] - theta*a_vector[i]
+  y_vector = c(y_vector, y_t)
+}
+a_vector = a_vector[2:201]
+y_vector = y_vector[2:201]
+```
+
+```{r}
+acf(y_vector, plot = TRUE)
+```
+
+```{r}
+eacf(y_vector, ar.max = 4, ma.max = 4)
+```
+
+
+## 2.
+### (a)
+
+根據eacf計算結果，最簡約之模型為AR(1)。
+
+```{r}
+a_vector = c(0, rt(48, 6))
+y_vector = c(0)
+for (i in 1:48) {
+  y_t = phi*y_vector[i] + a_vector[i+1] - theta*a_vector[i]
+  y_vector = c(y_vector, y_t)
+}
+a_vector = a_vector[2:49]
+y_vector = y_vector[2:49]
+```
+
+```{r}
+eacf(y_vector, ar.max = 4, ma.max = 4)
+```
+
+
+### (b)
+
+將模擬序列配適於ARMA(1,1)，$\hat{\phi} = 0.4762$，而$\hat{\theta} = -0.0772$，兩個參數估計值都與模擬真實值相差一些，表示使用更複雜的模型或許有機會提升估計精準度。
+
+```{r}
+arma11 = arma(y_vector)
+arma11$coef
+```
+
+
+## 3
+### (a)
+
+由此圖趨勢看來，數值有微微逐漸下降之趨勢，並且在最後又有較明顯之上升趨勢，表示序列中很可能存在週期性，因此應為non-stationary。
+
+```{r}
+robot = read.csv(file = 'C:/Users/Darui Yen/OneDrive/桌面/robot.csv')
+y = robot$robot
+plot(y, type = 'l')
+```
+
+
+### (b)
+
+由自相關係數圖，自相關雖隨著時間遞減，但從數值波動可以看出很可能存在週期性，並且即使經過了25個lag多數自相關係數仍達到顯著；再由pacf圖，前3個lag之部分自相關皆為顯著，表示AR(p)之p至少為3，至多可能達到6。綜合此兩張圖之判讀結果，此序列應為non-stationary。
+
+```{r}
+acf(y, plot = TRUE)
+```
+
+```{r}
+pacf(y, plot = TRUE)
+```
+
+
+### (c)
+
+由eacf之結果，最簡約之模型為ARMA(1,1)，表示雖然在上一小題由pacf觀察到AR(p)之p很可能>=3，但由eacf之結果，或許ARMA(1,1)即能夠將此筆資料配適的不錯。
+
+```{r}
+eacf(y, ar.max = 4, ma.max = 4)
+```
+
+
+### (d)
+
+由AR(1)配適，$\phi_1 = 0.3078$；由IMA(1,1)配適，$\theta_1 = -0.8713$。
+
+```{r}
+ar1 = ar(y, order.max = 1)
+ar1$ar
+```
+
+```{r}
+ima11 = arima(y, order = c(0, 1, 1))
+ima11$coef
+```
+
+
+### (e)
+
+比較此兩模型之AIC，IMA(1,1)之AIC小得多，因此應為較適用之模型；而若是觀察資料之殘差，則是AR(1)之殘差小一些。
+
+```{r}
+cat('AIC of AR(1):', ar1$aic[1], '\nAIC of IMA(1,1):', ima11$aic)
+```
+
+```{r}
+cat('Sum of Residual of AR(1): ', sum(ar1$resid, na.rm = T), '\nSum of Residual of IMA(1,1): ', sum(ima11$residuals))
+```

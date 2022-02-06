@@ -1,0 +1,260 @@
+---
+title: "r08621110_TSA_hw8"
+author: "農藝所碩三 R08621110 閻大瑞"
+date: "2021/12/25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1.
+### (a).
+$y_t=5+1.1y_{t-1}+0.5y_{t-2}+a_t$\
+$(1-1.1B+0.5B^2)y_t=a_t+5$ \
+$(1-1.1B+0.5B^2)(1+\psi_1B+\psi_2B^2+...)a_t=a_t+5$\
+$(1)(1+(\psi_1-1.1)B+xB^2+yB^3+...)a_t = a_t+5$\
+$=>1.1-\psi_1=0$\
+$\psi_1 = 1.1$
+
+
+### (b).
+$\hat{y_{2008}}=5+1.1\times10-0.5\times11=10.5$ \
+$\hat{y_{2009}}=5+1.1\times10.5-0.5\times10=11.55$
+
+
+### (c).
+$V(e_t(1))=\sigma^2_a=2$ \
+$z_{\frac{0.05}{2}}=1.96$ \
+95% confidence interval \
+$=(10.5-1.96*\sqrt2,10.5+1.96*\sqrt2)$ \
+$=(7.7728,13.2719)$
+
+
+### (d).
+$a_{2008}=10.5-12=-1.5$ \
+$\hat{y_{2008}(1)}=\hat{y_{2007}(2)}+\psi_1a_{2008}$ \
+$=11.55+1.1*(-1.5)$ \
+$=9.9$
+
+
+## 2.
+
+```{r}
+library(plotrix)
+robot = read.csv('C:/Users/Darui Yen/OneDrive/桌面/TSA HW06.robot.csv', header = T)
+train = c(robot)$robot[1:319]
+test = c(robot)$robot[320:324]
+```
+
+
+### (a).
+由IMA(1,1)模型，$\psi_1=-0.877$。\
+$(1-B)y_t=a_t-0.877a_{t-1}$\
+$y_t=y_{t-1}+a_t-0.877a_{t-1}$
+
+
+
+```{r}
+result2_1 = arima(train, c(0, 1, 1))
+psi1 = result2_1$coef
+a_vector = c()
+a_vector[1] = train[1]
+for (i in 2:length(train)){
+  a_vector[i] = train[i] - train[i-1] + psi1*a_vector[i-1]
+}
+```
+
+```{r}
+#####predict#####
+predict = c()
+predict[1] = train[319] + a_vector[319] + psi1*a_vector[318]
+predict[2] = predict[1] + psi1*a_vector[319]
+for (i in 322:324){
+  predict[i-319] = predict[i-320]
+}
+
+var_a = var(a_vector)
+upper_bound = c()
+lower_bound = c()
+for (i in 1:5){
+  interval = 1.96*sqrt((1 + ((1-psi1)^2)*(i-1))*var_a)
+  upper_bound[i] = predict[i] + interval
+  lower_bound[i] = predict[i] - interval 
+}
+
+cat('5個預測值(y320-y324):', predict)
+cat('95%信賴區間上界:', upper_bound)
+cat('95%信賴區間下界:', lower_bound)
+```
+
+
+### (b).
+由於模型中只有MA(1)，因此超過兩個時間點之預測值都會是定值；並且模型中包含一次diff，因此估計值信賴區間會逐漸增加。
+```{r}
+plotCI(320:324, predict, col = 'red', ui = upper_bound, li = lower_bound, ylim = c(-0.07, 0.07), main = 'IMA(1,1)')
+lines(320:324, test, type = 'b', col = 'blue')
+lines(320:324, predict, type = 'b', col = 'red')
+legend('topleft', legend = c('truth', 'predict'), col = c('blue', 'red'))
+```
+
+
+### (c).
+由ARMA(1,1)模型，$\pi_1=0.948$，$\psi_1=-0.807$。\
+$y_t=0.948\times y_{t-1}+a_t-0.807\times a_{t-1}$\
+將此結果與IMA(1,1)之結果相比，可以發現信賴區間小得多。
+```{r}
+result2_3 = arima(train, c(1, 0, 1))
+pi1 = result2_3$coef[1]
+psi1 = result2_3$coef[2]
+
+a_vector = c()
+a_vector[1] = train[1]
+for (i in 2:319){
+  a_vector[i] = train[i] - pi1*train[i-1] - psi1*a_vector[i-1]
+}
+```
+
+```{r}
+predict = c()
+predict[1] = pi1*train[319] + a_vector[319] + psi1*a_vector[318]
+predict[2] = pi1*predict[1] + psi1*a_vector[319]
+for (i in 322:324){
+  predict[i-319] =pi1* predict[i-320]
+}
+
+var_a = var(a_vector)
+upper_bound = c()
+lower_bound = c()
+for (i in 1:5){
+  interval = 1.96*sqrt((1 + ((1-psi1)^2)*(i-1))*var_a)
+  upper_bound[i] = predict[i] + interval
+  lower_bound[i] = predict[i] - interval 
+}
+
+cat('5個預測值(y320-y324):', predict)
+cat('95%信賴區間上界:', upper_bound)
+cat('95%信賴區間下界:', lower_bound)
+```
+
+```{r}
+plotCI(320:324, predict, col = 'red', ui = upper_bound, li = lower_bound, ylim = c(-0.025, 0.025), main = 'ARMA(1,1)')
+lines(320:324, test, type = 'b', col = 'green')
+lines(320:324, predict, type = 'b', col = 'purple')
+legend('topleft', legend = c('truth', 'predict'), col = c)
+```
+
+
+## 3.
+```{r}
+boarding = read.csv('C:/Users/Darui Yen/OneDrive/桌面/TSA HW08.boardings.csv', header = T)
+boarding = c(boarding)$log_boardings
+```
+
+
+### (a).
+觀察此時間序列，可能存在seasonality，並且看起來有向上之趨勢，很可能不為stationary。
+```{r}
+plot(boarding, type = 'l', main = 'log_boardings')
+```
+
+
+### (b).
+依據acf圖，除了lag1達到顯著之外，在lag5-6以及lag12都有達到顯著。
+```{r}
+acf(boarding)
+```
+
+
+### (c).
+根據$SARIMA(0,0,3)\times(1,0,0)_{12}$之參數估計值以及標準差，四個參數的95%信賴區間皆不包含0，表示四個參數之效應皆達顯著水準($\alpha=0.05$)。
+```{r}
+arima(boarding, order = c(0, 0, 3), seasonal = list(order = c(1, 0, 0), period = 12))
+cat('95% confidence interval of ma1: [', 0.7290 - 0.1186*1.96, ',', 0.7290 + 0.1186*1.96, ']')
+cat('95% confidence interval of ma2: [', 0.6116 - 0.1172*1.96, ',', 0.6116 + 0.1172*1.96, ']')
+cat('95% confidence interval of ma3: [', 0.2950 - 0.1118*1.96, ',', 0.2950 + 0.1118*1.96, ']')
+cat('95% confidence interval of sar1: [', 0.8776 - 0.0507*1.96, ',', 0.8776 + 0.0507*1.96, ']')
+```
+
+
+## 4.
+```{r}
+library(astsa)
+airpass = read.csv('C:/Users/Darui Yen/OneDrive/桌面/TSA HW08.airpass.csv', header = T)
+airpass = c(airpass)$airpass
+```
+
+
+### (a).
+根據log轉換之結果，轉換後也沒有辦法消除trend和seasonality。
+```{r}
+log_air = log(airpass)
+plot(log_air, col = 'red', main = 'log airpass', type = 'l')
+plot(airpass, col = 'blue', main = 'original airpass', type = 'l')
+```
+
+
+### (b).
+經過一次diff後，可以發現trend已經被消除，資料轉換後看起來相對stationary，但或許還是存在seasonality。
+```{r}
+diff_air = diff(log_air)
+plot(diff_air, col = 'navy', main = 'diff of log airpass', type = 'l')
+```
+
+
+### (c).
+再經由seasonal之diff，可以發現seasonality已大致消除，然而不同時間區間之變方似乎有些差異。
+```{r}
+sdiff_air = c()
+for (i in 1:(length(diff_air)-12)){
+  sdiff_air[i] = diff_air[i+12] - diff_air[i]
+}
+plot(sdiff_air, col = 'green', main = 'diff ND seasonal diff of log airpass', type = 'l')
+```
+
+
+### (d).
+由acf，lag1和lag12之ac達到顯著，表示資料經處理後可能還是存在一些seasonality之效應，並且seasonality內也可能還有ma之效應。
+```{r}
+acf(sdiff_air)
+```
+
+
+### (e).
+根據$SARIMA(0,1,1)\times(0,1,1)_{12}$，ma1 = -0.402, sma1 = -0.557。
+根據殘差圖以及QQ-plot，殘差應具有獨立性，根據acf則可以看出殘差沒有太顯著之相關性，根據Ljung-Box之檢定結果，亦沒有達到顯著。
+```{r}
+result4_5 = sarima(log(airpass), 0, 1, 1, 0, 1, 1, 12)
+ma1 = result4_5$fit$coef[1]
+sma1 = result4_5$fit$coef[2]
+```
+
+
+### (f).
+$y_t=y_{t-1}+y_{t-12}-y_{t-13}+a_t-0.402a_{t-1}-0.557a_{t-12}+0.224a_{t-13}$
+```{r}
+a_vector = c()
+a_vector[1] = log_air[1]
+for (i in 2:12){
+  a_vector[i] = log_air[i] - log_air[i-1] - ma1*a_vector[i-1]
+}
+a_vector[13] = log_air[13] - log_air[12] - log_air[1] - ma1*a_vector[12] - sma1*a_vector[1]
+for (i in 14:144){
+  a_vector[i] = log_air[i] - log_air[i-1] - log_air[i-12] + log_air[i-13] - ma1*a_vector[i-1] - sma1*a_vector[i-12] - ma1*sma1*a_vector[i-13]
+}
+
+predict = c()
+predict[1] = log_air[145-1] + log_air[145-12] - log_air[145-13] + ma1*a_vector[145-1] + sma1*a_vector[145-12] +
+ma1*sma1*a_vector[145-13]
+for (i in 2:12){
+  predict[i] = predict[i-1] + log_air[144+i-12] - log_air[144+i-13] + sma1*a_vector[144+i-12] + ma1*sma1*a_vector[144+i-13]
+}
+predict[13] = predict[12] + predict[1] - log_air[144] + ma1*sma1*a_vector[144]
+for (i in 14:24){
+  predict[i] = predict[i-1] + predict[i-12] - predict[i-13]
+}
+
+cat('未來兩年預測值: ', predict)
+```
+

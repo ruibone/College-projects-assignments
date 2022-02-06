@@ -1,0 +1,89 @@
+---
+title: "統計計算_hw0609"
+author: "農藝所碩二 R08621110 閻大瑞"
+date: "2021/5/28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning=F}
+library(rjags)
+library(LearnBayes)
+```
+
+#### model
+```{r}
+modelstring ="
+model{
+  for (i in 1:n) {
+    y[i] ~ dgamma(nu, mu[i])
+    mu[i] <- nu*e[i]
+    e[i] <- 1/(b0 + b1/(N[i] + a1) + b2/(P[i] + a2) + b3/(K[i] + a3))
+    yhat[i] <- 1/e[i]
+  }
+  
+  nu ~ dgamma(0.01, 0.01)
+  a1 ~ dnorm(40, 0.01)
+  a2 ~ dnorm(22, 0.01)
+  a3 ~ dnorm(32, 0.01)
+  b0 ~ dnorm(0, 1e-4)
+  b1 ~ dnorm(0, 1e-4) T(0,)
+  b2 ~ dnorm(0, 1e-4) T(0,)
+  b3 ~ dnorm(0, 1e-4) T(0,)
+}
+"
+writeLines(modelstring, con = "gamma_regression.bug")
+```
+
+#### data
+```{r}
+data <- bermuda.grass
+dimension <- dim(data)
+colname <- colnames(data)
+
+data <- c(as.matrix(data))
+for (i in 1:length(data)) if (data[i] == 3) data[i] <- 4
+data <- as.data.frame(matrix(data, dimension[1], dimension[2]))
+colnames(data) <- colname
+
+bermuda <- list(y = data$y, N = data$Nit*100, P = data$Phos*22, K = data$Pot*42, n = nrow(data))
+```
+
+#### Gibbs sampling
+```{r}
+jags <- jags.model(file = "gamma_regression.bug", data = bermuda, n.chains = 3)
+update(jags, n.iter = 2000, progress.bar = "text")
+
+out = coda.samples(jags, variable.names = c("nu", "a1", "a2", "a3", "b0", "b1", "b2", "b3", "mu[1]", "yhat[1]"), n.iter = 10000, thin = 5)
+outall = coda.samples(jags, variable.names = c("nu", "a1", "a2", "a3", "b0", "b1", "b2", "b3", "mu", "yhat"), n.iter = 10000, thin = 5)
+```
+
+#### convergence
+觀察$\alpha$、$\beta$、$\nu$，以及第一筆資料之$\mu$和$\hat{y}$的收斂情形，除了$\beta1$、$\beta2$、$\beta3$偶爾會出現較大的極端值以外，3個chain在各個變數下大致都收斂得不錯。
+```{r}
+par(mfrow = c(3,4))
+traceplot(out)
+```
+
+#### distribution
+觀察$\alpha$、$\beta$、$\nu$，以及第一筆資料之$\mu$和$\hat{y}$的分布，各個變數大多都呈現鐘形分布，而$\beta1$、$\beta2$、$\beta3$因為多了必須$>0$的限制，因此分布大約只剩下右尾。
+```{r}
+par(mfrow = c(3,4))
+densplot(out)
+```
+
+#### autocorrelation
+觀察第1個chain中$\alpha$、$\beta$、$\nu$，以及第一筆資料之$\mu$和$\hat{y}$的自動相關，在$thin = 5$的設定下，所有變數的自動相關都小於0.1，甚至趨近於0，而其中自動相關相對較高的變數為$\beta1$、$\beta2$、$\beta3$。
+```{r}
+par(mfrow = c(4,3))
+autocorr.plot(out[[1]])
+```
+
+#### summary
+觀察$\alpha$、$\beta$、$\nu$，以及第一筆資料之$\mu$和$\hat{y}$的綜合數據，3個$\alpha$的平均和變方都和模型中各自給的先驗分布相近；4個$\beta$由95%可信區間來看都達到顯著不為0，表示三種肥料元素皆有顯著效應，並且平均值在4-6左右，變方則是$\beta0$最小，另外3個$\beta$則因為是truncated，變方大得多；$\nu$的平均值為27.36，變方為15.58；各筆資料之$\mu$依據平均值可以很明顯地分為前16筆和後48筆兩組，平均值分別大約為11和5，標準差分別大約為7和3；而前16筆資料和後48筆資料之$\hat{y}$平均值分別大約為3和5，標準差則分別大約為1.1和0.4。
+```{r}
+summary(outall)$statistics
+```

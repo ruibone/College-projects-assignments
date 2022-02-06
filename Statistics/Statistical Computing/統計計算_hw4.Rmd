@@ -1,0 +1,127 @@
+---
+title: "統計計算_hw4"
+author: "農藝所碩二 R08621110 閻大瑞"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,warning = F}
+library(bootstrap)
+```
+
+```{r}
+stat <- function(x) {
+  x <- as.matrix(x)
+  eigenvalue <- eigen(cor(x))$values
+  biggest <- eigenvalue[1]/sum(eigenvalue)
+  return(biggest)
+}
+```
+
+```{r}
+data <- scor
+n <- nrow(data)
+iter <- 1000
+
+theta <- stat(data)
+theta
+```
+
+
+## (1) bootstrap
+```{r}
+thetahat1 <- c()
+
+for (i in 1:iter){
+  index <- sample(nrow(data), n, replace = T)
+  boot <- data[index,]
+  thetahat1[i] <- stat(boot)
+}
+```
+
+### bias
+```{r}
+bias1 <- mean(thetahat1) - theta
+bias1
+```
+
+### standard error
+```{r}
+sd1 <- sd(thetahat1)
+sd1
+
+```
+
+
+## (2) jackknife
+```{r}
+thetahat2 <- c()
+
+for (i in 1:nrow(data)){
+  jack <- data[-i,]
+  thetahat2[i] <- stat(jack)
+}
+```
+
+### bias
+```{r}
+bias2 <- nrow(jack)*(mean(thetahat2) - theta)
+bias2
+```
+
+### standard error
+```{r}
+sd2 <- sqrt((n-1)*mean((thetahat2 - mean(thetahat2))^2))
+sd2
+```
+
+
+## (3) confidence interval
+### 95% percentile
+```{r}
+alpha <- c(0.025, 0.975)
+interval <- quantile(thetahat1, alpha, type = 6)
+interval
+```
+
+### BCa
+```{r}
+boot.BCa <- function(x, stat, alpha = 0.05) {
+  x <- as.matrix(x)
+  n <- nrow(x)
+  alpha <- c(alpha, 1-alpha)/2
+  zalpha <- qnorm(alpha)
+  
+  theta <- stat(x)
+  thetahat <- c()
+  for (i in 1:n) {
+    index <- sample(1:n, n, replace = T)
+    xboot <- x[index,]
+    thetahat[i] <- stat(xboot)
+  }
+  
+  z <- qnorm(sum(thetahat < theta)/n)
+  
+  jackvec <- c()
+  for (i in 1:n) {
+    xjack <- x[-i,]
+    jackvec[i] <- stat(xjack)
+  }
+  
+  L <- mean(jackvec) - jackvec
+  a <- sum(L^3)/(6 * sum(L^2)^1.5)
+  
+  # BCa conf. limits
+  adj.alpha <- pnorm(z + (z+zalpha)/(1-a*(z+zalpha)))
+  limits <- quantile(thetahat, adj.alpha, type = 6)
+  return(list("BCa" = limits))
+}
+```
+
+```{r}
+boot.BCa(x = data, stat = stat)
+```
+

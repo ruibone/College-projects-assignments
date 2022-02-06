@@ -1,0 +1,254 @@
+---
+title: "統計計算_final"
+author: "農藝所碩二 R08621110 閻大瑞"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+set.seed(112)
+```
+
+
+本次模擬作業參考Holland, P. W., & Welsch, R. E. (1977) 的robust regression研究（ https://www.tandfonline.com/doi/abs/10.1080/03610927708827533 ），論文中Monte Carlo的目的為驗證八個 weight function 的tuning constant是否正確。
+
+#### weight function & setting
+作者收集了前人提出的八個weight function，以及各個weight function最佳的tuning constant；理論上將$\sigma$乘上tuning constant後，再帶入對應的weight function中，應可以達到約95%的asymptotic efficiceny。
+```{r}
+Andrews <- function(residual, constant, sigma) {
+    A <- sigma*constant
+    if (abs(residual) <= pi*A) {
+      weight <- (A/residual)*sin(residual/A)
+    } else {
+      weight <- 0
+    }
+    return(weight)
+  }
+  
+Beaton <- function(residual, constant, sigma) {
+  B <- sigma*constant
+  if (abs(residual) <= B) {
+    weight <- (1-(residual/B)^2)^2
+  } else {
+    weight <- 0
+  }
+  return(weight)
+}
+  
+Talwar <- function(residual, constant, sigma) {
+  T <- sigma*constant
+  if (abs(residual) <= T) {
+    weight <- 1
+  } else {
+    weight <- 0
+  }
+  return(weight)
+}
+  
+Cauchy <- function(residual, constant, sigma) {
+  C <- sigma*constant
+  weight <- 1/(1+(residual/C)^2)
+  return(weight)
+}
+
+Welsch <- function(residual, constant, sigma) {
+  W <- sigma*constant
+  weight <- exp(-(residual/W)^2)
+  return(weight)
+}
+
+Huber <- function(residual, constant, sigma) {
+  H <- sigma*constant
+  if (abs(residual) <= H) {
+    weight <- 1
+  } else {
+    weight <- H/abs(residual)
+  }
+  return(weight)
+}
+
+Logistic <- function(residual, constant, sigma) {
+  L <- sigma*constant
+  weight <- (L/residual)*tanh(residual/L)
+  return(weight)
+}
+
+Fair <- function(residual, constant, sigma) {
+  F_ <- sigma*constant
+  weight <- 1/(1+abs(residual)/F_)
+  return(weight)
+}
+
+weight_list <- list(Andrews, Beaton, Talwar, Cauchy, Welsch, Huber, Logistic, Fair)
+
+weight_index <- c("Andrews", "Beaton", "Talwar", "Cauchy", "Welsch", "Huber", "Logistic", "Fair")
+tuning_constant <- c(1.339, 4.865, 2.795, 2.385, 2.985, 1.345, 1.205, 1.4)
+
+```
+
+#### robust regression
+根據作者的模擬設定，IRLS中iteration = 5即視為收斂；sigma correct若是為true，則是將資料之$\sigma$統一設定為1
+，若是為false，則是利用作者提供的公式計算。另外在此與作者設定不同的是，作者使用least absolute regression計算$\beta0$，本次模擬為求方便，則是以OLS計算。
+```{r}
+robust <- function(X, Y, weight_func, iter = 5, sigma_correct = F) {
+  
+  # initial value
+  x <- as.matrix(X)
+  Y <- as.matrix(Y)
+  betas <- matrix(NA, ncol(X), iter+1)
+  betas[,1] <- c(solve(t(X)%*%X)%*%t(X)%*%Y)
+  residual <- matrix(NA, nrow(Y), iter+1)
+  residual[,1] <- c(Y) - c(X%*%betas[,1])
+  if (!sigma_correct) {
+    sigma <- 1.48*median(abs(c(residual[,1]) - median(c(residual[,1]))))
+  } else {
+    sigma <- 1
+  }
+  # assign weight function
+  if (!(weight_func %in% weight_index)) {
+    stop("invalid weight function !") 
+  } else {
+      index <- which(weight_func == weight_index)
+      constant <- tuning_constant[index]
+      weight_func <- weight_list[[index]]
+    }
+
+  # iterate beta
+  for (i in 1:iter) {
+    weights <- c()
+    for (data in 1:nrow(Y)) {
+      weights[data] <- weight_func(residual[data,i], constant, sigma)
+    }
+    W <- diag(weights)
+    betas[,i+1] <- solve(t(X)%*%W%*%X)%*%t(X)%*%W%*%Y
+    residual[,i+1] <- c(Y) - c(X%*%betas[,i+1])
+  }
+  
+  yhat <- c(X%*%betas[,iter+1])
+  return(list(yhat, betas))
+}
+```
+
+#### simulation
+如同作者設定，每個weight function模擬1500次，每一次的模擬都計算一個所有資料的$\hat{y}$平均。而模擬資料總共來自三種情境：第一種為常態分布，其中變方使用作者提供之公式計算；第二種同樣為常態分布，變方一律為1；第三種將標準常態分布除以uniform分布，為slash分布。至於樣本數，則有N = 10, 20, 40三種設定。
+```{r}
+sim_robust <-function(distribution, repli = 1000, N = c(10,20,40), sigma_correct = F) {
+  
+  sim_arr <- array(NA, c(repli, length(weight_index), length(N))) # [replicate, method, sample size]
+  sample_mean <- matrix(NA, repli, length(N)) # [replicate, sample size]
+  
+  for (n in 1:length(N)) {
+    for (r in 1:repli) {
+      
+      # data generation
+      X <- rnorm(N[n]*5, 2, 1)
+      Y <- rnorm(N[n], 2, 1)
+      Z <- runif(N[n]) 
+      if (distribution == "Gaussian") {
+        X <- matrix(X, N[n], 5)
+        Y <- matrix(Y, N[n], 1)
+      } else if (distribution == "Slash") {
+        X <- matrix(X, N[n], 5)
+        Y <- matrix(Y/Z, N[n], 1)
+      } else {
+        stop("Invalid distribution !")
+      }
+
+      # simulation
+      for (m in 1:length(weight_index)) {
+        if (sigma_correct) {
+          yhat <- robust(X, Y, weight_index[m], sigma_correct = T)[[1]]
+        } else {
+          yhat <- robust(X, Y, weight_index[m], sigma_correct = F)[[1]]
+        }
+        sim_arr[r,m,n] <- mean(yhat)
+      }
+      sample_mean[r,n] <- mean(c(Y))
+    }
+  }
+  return(list(sim_arr, sample_mean))
+}
+```
+
+#### asymptotic efficicency
+將每一次抽樣平均之變方，除以三種情境下計算$\hat{y}$平均之變方，即可以得到asymptotic efficiency。依據作者的說明，各個weight function和tuning constant的組合應達到95%的asymptotic efficiency。
+```{r}
+# show sigular error frequently
+# Slash
+#sla <- sim_robust("Slash")
+
+#sla_10 <- c(var(sla[[1]][,1,1]), var(sla[[1]][,2,1]), var(sla[[1]][,3,1]), var(sla[[1]][,4,1]), var(sla[[1]][,5,1]), var(sla[[1]][,6,1]), var(sla[[1]][,7,1]), var(sla[[1]][,8,1]))
+
+#sla_20 <- c(var(sla[[1]][,1,2]), var(sla[[1]][,2,2]), var(sla[[1]][,3,2]), var(sla[[1]][,4,2]), var(sla[[1]][,5,2]), var(sla[[1]][,6,2]), var(sla[[1]][,7,2]), var(sla[[1]][,8,2]))
+
+#sla_40 <- c(var(sla[[1]][,1,3]), var(sla[[1]][,2,3]), var(sla[[1]][,3,3]), var(sla[[1]][,4,3]), var(sla[[1]][,5,3]), var(sla[[1]][,6,3]), var(sla[[1]][,7,3]), var(sla[[1]][,8,3]))
+
+#sla_simu <- rbind(sla_10, sla_20, sla_40)
+
+# Gaussian 
+gau <- sim_robust("Gaussian")
+
+gau_10 <- var(gau[[2]][,1])/c(var(gau[[1]][,1,1]), var(gau[[1]][,2,1]), var(gau[[1]][,3,1]), var(gau[[1]][,4,1]), var(gau[[1]][,5,1]), var(gau[[1]][,6,1]), var(gau[[1]][,7,1]), var(gau[[1]][,8,1]))
+
+gau_20 <- var(gau[[2]][,2])/c(var(gau[[1]][,1,2]), var(gau[[1]][,2,2]), var(gau[[1]][,3,2]), var(gau[[1]][,4,2]), var(gau[[1]][,5,2]), var(gau[[1]][,6,2]), var(gau[[1]][,7,2]), var(gau[[1]][,8,2]))
+
+gau_40 <- var(gau[[2]][,3])/c(var(gau[[1]][,1,3]), var(gau[[1]][,2,3]), var(gau[[1]][,3,3]), var(gau[[1]][,4,3]), var(gau[[1]][,5,3]), var(gau[[1]][,6,3]), var(gau[[1]][,7,3]), var(gau[[1]][,8,3]))
+
+gau_simu <- rbind(gau_10, gau_20, gau_40)
+
+
+# Gaussian with corrected sigma (sigma = 1)
+cgau <- sim_robust("Gaussian", sigma_correct = T)
+
+cgau_10 <- var(cgau[[2]][,1])/c(var(cgau[[1]][,1,1]), var(cgau[[1]][,2,1]), var(cgau[[1]][,3,1]), var(cgau[[1]][,4,1]), var(cgau[[1]][,5,1]), var(cgau[[1]][,6,1]), var(cgau[[1]][,7,1]), var(cgau[[1]][,8,1]))
+
+cgau_20 <- var(cgau[[2]][,2])/c(var(cgau[[1]][,1,2]), var(cgau[[1]][,2,2]), var(cgau[[1]][,3,2]), var(cgau[[1]][,4,2]), var(cgau[[1]][,5,2]), var(cgau[[1]][,6,2]), var(cgau[[1]][,7,2]), var(cgau[[1]][,8,2]))
+
+cgau_40 <- var(cgau[[2]][,3])/c(var(cgau[[1]][,1,3]), var(cgau[[1]][,2,3]), var(cgau[[1]][,3,3]), var(cgau[[1]][,4,3]), var(cgau[[1]][,5,3]), var(cgau[[1]][,6,3]), var(cgau[[1]][,7,3]), var(cgau[[1]][,8,3]))
+
+cgau_simu <- rbind(cgau_10, cgau_20, cgau_40)
+```
+
+#### methods comparison
+將三種情境的模擬結果做圖，並且和論文中的結果比較。
+下圖為第一種論文中情境之模擬結果，在n = 10下各個方法的efficiency差異相當大，隨著樣本數增加變方有下降的趨勢，但各weight function之結果仍不相近，並且可以注意到沒有任何方法能夠確實達到95%之asymptotic efficiency。
+```{r, out.width='100%'}
+knitr::include_graphics('C:/Users/Darui Yen/OneDrive/桌面/fig1.png')
+```
+
+將本次模擬結果與論文比較，各weight function的相對位置幾乎相同，除了Talwar差異很大。而在n = 10下efficieny介於85% -95%之間，與論文結果亦相近。本次模擬結果有樣本數越大efficiency越接近95%的趨勢；然而與論文結果不同的是，在n = 40下已有不少方法的efficiency達到95%。
+```{r}
+N <- c(10,20,40)
+
+matplot(N, gau_simu, type = "b", main = "Gaussian Efficiencies", ylab = "efficiency (%)", ylim = c(0.8,1))
+legend("bottomright", weight_index, lty = 1:length(weight_index), pch = 1:length(weight_index))
+```
+
+第二種情境下，論文結果中除了Talwar之外，各個weight function在n = 10下都可以達到95%的efficiency，並且隨樣本增加，對於結果的影響甚微。
+```{r, out.width='100%'}
+knitr::include_graphics('C:/Users/Darui Yen/OneDrive/桌面/fig2.png')
+```
+
+將本次模擬結果與論文比較，一樣是除了Talwar之外，各個weight function的相對位置都與論文結果大致相同。此外，本次模擬結果也是在n = 10下即達到95%的efficiency，然而各weight function之間的差異比論文結果大一些。
+```{r}
+matplot(N, cgau_simu, type = "b", main = "Gaussian Efficiencies with sigma correction", ylab = "efficiency (%)", ylim = c(0.8,1))
+legend("bottomright", weight_index, lty = 1:length(weight_index), pch = 1:length(weight_index))
+```
+
+第三種情境下，隨著樣本增加，各weight function所計算的變方都會下降。
+```{r, out.width='100%'}
+knitr::include_graphics('C:/Users/Darui Yen/OneDrive/桌面/fig3.png')
+```
+
+將本次模擬結果與論文比較，整體趨勢看似大致一樣，不過各weight function之間的相對順序差異相當大，並且可以注意到當n = 20和40，變方急遽下降至相當接近於0，表示此結果不僅與論文結果相差很大，看起來也不合理。
+事實上，在slash分布下，本次模擬的程式碼頻頻出現計算反矩陣過程中為sigular的error，並且一直沒有好的解決方法，因此可以推測應是模擬程式碼有誤，或者誤解了作者的模擬條件，導致結果不具參考價值。
+```{r}
+#matplot(N, sla_simu, type = "b", main = "Slash Efficiencies", ylab = "variance")
+#legend("topright", weight_index, lty = 1:length(weight_index), pch = 1:length(weight_index))
+
+knitr::include_graphics('C:/Users/Darui Yen/OneDrive/fig33.png')
+```
+

@@ -1,0 +1,40 @@
+---
+title: "r08621110_TSA_hw7"
+author: "農藝所碩三 R08621110 閻大瑞"
+date: "2021/12/19"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## 5.
+```{r}
+co2 = read.csv('C:/Users/Darui Yen/OneDrive/桌面/TSA HW07.co2.csv', header = T, sep = ',')
+```
+
+
+### (a).
+根據線性模型結果，除了二、三、五月之外，其他月份皆達顯著水準，時間亦達到顯著水準；$adjusted-R^2$ = 0.9892。
+```{r}
+co2$time_stamp = 1:dim(co2)[1]
+result = lm(co2_level~month+time_stamp, data = co2)
+aic = extractAIC(result)[2]
+cat('AIC of linear model = ', aic)
+summary(result)
+```
+
+
+### (b).
+使用$SARIMA(0,1,1)\times(0,1,1)_{12}$重新配適資料，依據結果MA(1)與SMA(1)皆達到顯著。
+```{r}
+library(astsa)
+sarima(co2$co2_level, 0, 1, 1, 0, 1, 1, 12)
+```
+
+### (c).
+觀察以上兩方法之結果，線性模型之AIC比SARIMA小的多，因此應選用線性模型可以配適的較好。
